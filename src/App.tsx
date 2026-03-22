@@ -1,12 +1,14 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-
 import Layout from './components/Layout';
-import { Home } from './components/Home'; // ตรงนี้ต้องมีปีกกา
+import Home from './components/Home';
 import EventDetails from './components/EventDetails';
 import Checkout from './components/Checkout';
 import Login from './components/Login';
+import AdminConcertForm from './components/AdminConcertForm';
+import Inventory from './components/Inventory';
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
       <Layout>
@@ -15,10 +17,11 @@ function App() {
           <Route path="/event/:id" element={<EventDetails />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/admin/concert" element={<AdminConcertForm />} />
+          <Route path="/admin/concert/:id" element={<AdminConcertForm />} /> {/* สำหรับแก้ไข */}
         </Routes>
       </Layout>
     </BrowserRouter>
   );
 }
-
-export default App;

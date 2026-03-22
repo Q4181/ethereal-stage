@@ -1,227 +1,109 @@
-// src/components/EventDetails.tsx
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion'; // แก้ไข Import ให้รองรับได้ครอบคลุมขึ้น
-import { Calendar, MapPin, Plus, Minus, Ticket } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { cn } from '../types';
+import { useNavigate, useParams } from 'react-router-dom';
+import Modal from './Modal';
 
 export default function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  
-  // สร้าง State สำหรับเก็บข้อมูลจาก Backend
   const [concert, setConcert] = useState<any>(null);
   const [selectedSeats, setSelectedSeats] = useState<any[]>([]);
+  const [modal, setModal] = useState({ open: false, type: 'info' as 'info' | 'error', title: '', msg: '' });
 
-  // ดึงข้อมูลคอนเสิร์ตและที่นั่งจาก Backend
   useEffect(() => {
-    fetch('http://localhost:5000/api/concerts/1') // ดึง ID 1 ที่เรา seed ข้อมูลไว้
+    fetch(`http://localhost:5000/api/concerts/${id}`)
       .then(res => res.json())
-      .then(data => setConcert(data))
-      .catch(err => console.error(err));
-  }, []);
+      .then(data => setConcert(data));
+  }, [id]);
 
-  // ฟังก์ชันกดเลือกที่นั่ง
   const toggleSeat = (seat: any) => {
-    if (seat.status !== 'AVAILABLE') return; // ถ้าขายแล้วกดไม่ได้
-    
+    if (seat.status !== 'AVAILABLE') return;
     const isSelected = selectedSeats.some(s => s.id === seat.id);
-    if (isSelected) {
-      setSelectedSeats(selectedSeats.filter(s => s.id !== seat.id));
-    } else {
-      setSelectedSeats([...selectedSeats, seat]);
-    }
+    if (isSelected) setSelectedSeats(selectedSeats.filter(s => s.id !== seat.id));
+    else setSelectedSeats([...selectedSeats, seat]);
   };
 
-  // ฟังก์ชันกดปุ่มชำระเงิน
   const handleProceed = () => {
-    if (selectedSeats.length === 0) return alert('กรุณาเลือกที่นั่งอย่างน้อย 1 ที่');
-    // ส่งข้อมูลที่นั่งไปหน้า Checkout
+    if (selectedSeats.length === 0) {
+      setModal({ open: true, type: 'info', title: 'แจ้งเตือน', msg: 'กรุณาเลือกที่นั่งอย่างน้อย 1 ที่' });
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setModal({ open: true, type: 'info', title: 'เข้าสู่ระบบ', msg: 'คุณต้องเข้าสู่ระบบก่อนทำการซื้อตั๋วครับ' });
+      return;
+    }
     navigate('/checkout', { state: { selectedSeats } });
   };
 
-  // ระหว่างรอข้อมูลจาก Backend
-  if (!concert) return <div className="min-h-screen pt-24 text-white text-center">Loading...</div>;
+  if (!concert) return <div className="text-center pt-32 text-gray-400">Loading...</div>;
 
-  // จัดกลุ่มที่นั่งจากฐานข้อมูลแยกเป็น VIP และ Regular
-  const vipSeats = concert.seats?.filter((s: any) => s.tier === 'VIP') || [];
-  const regularSeats = concert.seats?.filter((s: any) => s.tier === 'Regular') || [];
-
-  // คำนวณราคาสดๆ จากที่นั่งที่เลือก
-  const getSeatPrice = (tier: string) => tier === 'VIP' ? 249 : 129;
-  const seatsTotal = selectedSeats.reduce((sum, seat) => sum + getSeatPrice(seat.tier), 0);
-  const serviceFee = selectedSeats.length > 0 ? 24.50 : 0;
-  const finalTotal = seatsTotal + serviceFee;
+  const groupedSeats = concert.seats?.reduce((acc: any, seat: any) => {
+    if (!acc[seat.tier]) acc[seat.tier] = {};
+    if (!acc[seat.tier][seat.row]) acc[seat.tier][seat.row] = [];
+    acc[seat.tier][seat.row].push(seat);
+    return acc;
+  }, {}) || {};
 
   return (
-    <div className="min-h-screen pt-24 pb-32 px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12">
-      {/* Left Column: Map */}
-      <section className="lg:col-span-8 space-y-8">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          <span className="text-primary font-label uppercase tracking-widest text-xs font-bold">Live Performance</span>
-          {/* เปลี่ยนมาดึง concert.name และข้อมูลจริงจาก Database */}
-          <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight">{concert.name}</h1>
-          <div className="flex gap-6 text-on-surface-variant text-sm">
-            <span className="flex items-center gap-2"><Calendar size={16} /> {concert.date}</span>
-            <span className="flex items-center gap-2"><MapPin size={16} /> {concert.venue}</span>
-          </div>
-        </motion.div>
-
-        {/* Stage Visualization (เหมือนเดิม) */}
-        <div className="relative w-full aspect-[16/6] bg-surface-low rounded-xl overflow-hidden flex items-end justify-center pb-4 border border-white/5">
-          <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent" />
-          <div className="w-3/4 h-2 bg-primary/40 blur-md absolute bottom-0" />
-          <div className="relative z-10 px-12 py-3 bg-surface-high rounded-t-3xl border-t border-white/5 text-center w-2/3">
-            <span className="font-headline font-bold text-on-surface-variant tracking-[0.4em] uppercase text-[10px]">Stage Center</span>
-          </div>
+    <div className="max-w-6xl mx-auto px-6 py-12">
+      <Modal 
+        isOpen={modal.open} 
+        type={modal.type} 
+        title={modal.title} 
+        message={modal.msg} 
+        onClose={() => {
+          setModal({ ...modal, open: false });
+          if (modal.msg.includes('เข้าสู่ระบบ')) navigate('/login');
+        }} 
+      />
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 mb-8 shadow-2xl overflow-hidden">
+        <div className="w-full h-80 bg-gray-800 rounded-2xl overflow-hidden mb-8 relative">
+           <img src={concert.image || 'https://images.unsplash.com/photo-1540039155732-68ee23e15b51?w=1200&q=80'} className="w-full h-full object-cover" />
+           <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+        </div>
+        <h1 className="text-4xl font-extrabold text-white mb-2">{concert.name}</h1>
+        <p className="text-blue-400 font-bold mb-4">{concert.date} | {concert.venue}</p>
+        
+        <div className="w-full h-16 bg-gradient-to-b from-blue-600/30 to-transparent rounded-t-full border-t border-blue-500/50 mb-16 flex items-center justify-center">
+          <span className="text-blue-300 font-bold tracking-[0.5em] text-sm">STAGE</span>
         </div>
 
-        {/* Seat Grid (ดึงจากฐานข้อมูลจริง) */}
-        <div className="bg-surface-container rounded-xl p-8 relative shadow-2xl border border-white/5 overflow-hidden">
-          <div className="flex flex-col items-center gap-12 py-8">
-            
-            {/* VIP Section */}
-            <div className="space-y-4 text-center">
-              <span className="text-[10px] font-label text-tertiary-dim tracking-widest uppercase font-bold">VIP Orchestra</span>
-              <div className="flex flex-wrap justify-center gap-3">
-                {vipSeats.map((seat: any) => {
-                  const isSelected = selectedSeats.some(s => s.id === seat.id);
-                  const isSold = seat.status !== 'AVAILABLE';
-                  return (
-                    <button 
-                      key={seat.id}
-                      onClick={() => toggleSeat(seat)}
-                      disabled={isSold}
-                      className={cn(
-                        "w-10 h-10 rounded-sm transition-all duration-300 flex items-center justify-center text-xs font-bold",
-                        isSold ? "bg-surface-highest opacity-30 cursor-not-allowed" : 
-                        isSelected ? "cta-gradient shadow-lg shadow-primary/20 text-black" : 
-                        "bg-tertiary/20 hover:bg-tertiary/40 border border-tertiary/10 text-white"
-                      )}
-                    >
-                      {seat.row}{seat.number}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Regular Section */}
-            <div className="space-y-4 text-center">
-              <span className="text-[10px] font-label text-on-surface-variant tracking-widest uppercase font-bold">Regular Seating</span>
-              <div className="flex flex-wrap justify-center gap-3">
-                {regularSeats.map((seat: any) => {
-                  const isSelected = selectedSeats.some(s => s.id === seat.id);
-                  const isSold = seat.status !== 'AVAILABLE';
-                  return (
-                    <button 
-                      key={seat.id}
-                      onClick={() => toggleSeat(seat)}
-                      disabled={isSold}
-                      className={cn(
-                        "w-10 h-10 rounded-sm transition-all duration-300 flex items-center justify-center text-xs font-bold",
-                        isSold ? "bg-surface-highest opacity-30 cursor-not-allowed" : 
-                        isSelected ? "bg-surface-highest text-white hover:bg-primary/40 border-2 border-primary" : 
-                        "bg-surface-highest hover:bg-primary/40 text-gray-400"
-                      )}
-                    >
-                      {seat.row}{seat.number}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap justify-center gap-8 pt-8 border-t border-white/5">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-tertiary" />
-              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">VIP ($249)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-surface-highest" />
-              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Regular ($129)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-surface-highest opacity-30" />
-              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Sold Out</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Right Column: Summary */}
-      <aside className="lg:col-span-4 h-fit sticky top-28">
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-surface-high rounded-3xl p-8 shadow-2xl border border-white/5 backdrop-blur-md space-y-8"
-        >
-          <div className="space-y-6">
-            <h3 className="text-xl font-headline font-bold">Booking Details</h3>
-            <div className="space-y-4">
-              
-              {/* คำนวณรายการที่นั่งที่เลือกจริง */}
-              {selectedSeats.length > 0 ? (
-                selectedSeats.map(seat => (
-                  <div key={seat.id} className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-sm font-label text-on-surface font-bold">Seat {seat.row}{seat.number}</p>
-                      <p className="text-xs text-on-surface-variant">{seat.tier} Section</p>
-                    </div>
-                    <span className="text-primary font-bold">${getSeatPrice(seat.tier)}.00</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-on-surface-variant">ยังไม่ได้เลือกที่นั่ง</p>
-              )}
-
-              <div className="flex justify-between items-start pt-4 border-t border-white/5">
-                <div>
-                  <p className="text-sm font-label text-on-surface font-bold">Service Fee</p>
-                  <p className="text-xs text-on-surface-variant">Booking & Processing</p>
+        {Object.keys(groupedSeats).map((tierName) => (
+          <div key={tierName} className="mb-12">
+            <h3 className="font-bold mb-6 tracking-widest text-sm uppercase text-blue-400 text-center">{tierName} SECTION</h3>
+            <div className="flex flex-col gap-4 overflow-x-auto pb-6">
+              {Object.keys(groupedSeats[tierName]).map(rowName => (
+                <div key={rowName} className="flex justify-center gap-2 min-w-max mx-auto px-4">
+                  <div className="w-8 flex items-center justify-center font-bold text-gray-500 mr-2">{rowName}</div>
+                  {groupedSeats[tierName][rowName].map((seat: any) => {
+                    const isSelected = selectedSeats.some(s => s.id === seat.id);
+                    const isSold = seat.status !== 'AVAILABLE';
+                    return (
+                      <button key={seat.id} onClick={() => toggleSeat(seat)} disabled={isSold}
+                        className={`w-10 h-10 rounded font-bold text-xs transition-all flex items-center justify-center ${
+                          isSold ? 'bg-gray-800 text-gray-700' :
+                          isSelected ? 'bg-blue-500 text-white scale-110 shadow-lg' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-600'
+                        }`}>
+                        {seat.number}
+                      </button>
+                    );
+                  })}
                 </div>
-                <span className="text-on-surface-variant">${serviceFee.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-surface-highest/40 rounded-2xl p-4 border-y border-white/5 space-y-3">
-            <div className="flex items-center gap-3">
-              <Ticket className="text-primary" size={18} />
-              <span className="text-[10px] font-label uppercase tracking-widest text-on-surface-variant font-bold">Selected Seats</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selectedSeats.map(seat => (
-                <span key={seat.id} className="bg-primary/20 text-primary text-[10px] px-3 py-1 rounded-full font-bold">
-                  {seat.row}{seat.number}
-                </span>
               ))}
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className="space-y-6">
-            <div className="flex justify-between items-center pt-4">
-              <span className="text-lg font-headline text-on-surface-variant">Total Price</span>
-              <span className="text-4xl font-headline font-extrabold text-on-surface">${finalTotal.toFixed(2)}</span>
-            </div>
-            <button 
-              onClick={handleProceed}
-              className="w-full py-5 rounded-full cta-gradient text-on-primary font-bold shadow-lg transition-transform active:scale-95 hover:opacity-90 block text-center text-lg cursor-pointer"
-            >
-              Proceed to Checkout
-            </button>
-            <p className="text-[10px] text-center text-on-surface-variant px-4 uppercase tracking-wider leading-relaxed">
-              By clicking you agree to our Terms of Sale and Event Attendance Policy.
-            </p>
-          </div>
-        </motion.div>
-      </aside>
+      <div className="sticky bottom-8 bg-gray-800/90 backdrop-blur-md border border-gray-700 p-6 rounded-2xl flex justify-between items-center shadow-2xl">
+        <div>
+          <p className="text-gray-400 text-sm">เลือกแล้ว {selectedSeats.length} ที่นั่ง</p>
+          <p className="text-3xl font-extrabold text-white">${selectedSeats.reduce((sum, s) => sum + s.price, 0)}</p>
+        </div>
+        <button onClick={handleProceed} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors">
+          ดำเนินการชำระเงิน
+        </button>
+      </div>
     </div>
   );
 }

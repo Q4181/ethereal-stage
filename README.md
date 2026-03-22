@@ -14,6 +14,8 @@ View your app in AI Studio: https://ai.studio/apps/9d178176-e0bb-4fc2-9728-c7833
 
 server 
    'npx nodemon server.js'
+   npx prisma db push
+   npx prisma generate
 
 1. Install dependencies:
    `npm install`

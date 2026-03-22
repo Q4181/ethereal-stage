@@ -1,56 +1,38 @@
 import express from 'express';
 import cors from 'cors';
-import pkg from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import pkg from '@prisma/client';       
 
-const { PrismaClient } = pkg;
+const { PrismaClient } = pkg;           
 const prisma = new PrismaClient();
-
-
-const SECRET_KEY = 'MY_SUPER_SECRET_KEY'; // คีย์สำหรับเข้ารหัส Token (โปรแกรมจริงควรซ่อนไว้ในไฟล์ .env)
+const SECRET_KEY = 'MY_SUPER_SECRET_KEY'; 
 const app = express();
 
-// อนุญาตให้ React (ที่รันพอร์ต 3000) ส่งข้อมูลเข้ามาได้
 app.use(cors()); 
 app.use(express.json());
 
-// ==========================================
-// Middleware (ตัวคัดกรองสิทธิ์)
-// ==========================================
-
-// 1. เช็คว่า Login หรือยัง (มี Token ส่งมาไหม)
+// ================== Middleware ==================
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // ปกติจะส่งมาในรูปแบบ "Bearer <token>"
-
-  if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
-
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied.' });
   jwt.verify(token, SECRET_KEY, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token.' });
-    req.user = user; // เอาข้อมูล user (id, role) ไปใช้ต่อใน API
+    if (err) return res.status(403).json({ error: 'Invalid token.' });
+    req.user = user; 
     next();
   });
 };
 
-// 2. เช็คว่าเป็น Admin หรือไม่ (ต้องใช้คู่กับ authenticateToken เสมอ)
 const isAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Forbidden. Admin access required.' });
-  }
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin access required.' });
   next();
 };
 
-// ==========================================
-// API Routes
-// ==========================================
-
-// --- ระบบ Login ---
+// ================== Public & User API ==================
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   const user = await prisma.user.findUnique({ where: { email } });
-  
   if (user && user.password === password) {
-    // สร้าง Token ใช้งานได้ 24 ชั่วโมง
     const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '24h' });
     res.json({ success: true, token, role: user.role });
   } else {
@@ -58,116 +40,96 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// --- ดูคลังตั๋วของตัวเอง (ต้อง Login) ---
-app.get('/api/users/me/tickets', authenticateToken, async (req, res) => {
-  const userId = req.user.id; 
-
-  const tickets = await prisma.ticket.findMany({
-    where: { userId: userId },
-    include: {
-      seat: {
-        include: { concert: true } // ดึงข้อมูลที่นั่งและคอนเสิร์ตที่เชื่อมโยงกันมาด้วย
-      }
-    }
-  });
-
-  res.json({
-    totalTickets: tickets.length,
-    tickets: tickets
-  });
+// ดึงคอนเสิร์ต (User เห็นแค่ Public)
+app.get('/api/concerts', async (req, res) => {
+  try {
+    const concerts = await prisma.concert.findMany({ where: { isPublished: true } });
+    res.json(concerts);
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- ซื้อตั๋ว (ต้อง Login) ---
-app.post('/api/tickets/buy', authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-  const { seatIds } = req.body; // รับเป็น Array เช่น [1, 2]
-
+// ดูรายละเอียดคอนเสิร์ต
+app.get('/api/concerts/:id', async (req, res) => {
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. เช็คว่าที่นั่งยังว่างอยู่ไหม
-      const seats = await tx.seat.findMany({ where: { id: { in: seatIds } } });
-      const unavailable = seats.some(seat => seat.status !== 'AVAILABLE');
-      if (unavailable) throw new Error('Some seats are no longer available');
-
-      // 2. เปลี่ยนสถานะที่นั่งเป็น SOLD
-      await tx.seat.updateMany({
-        where: { id: { in: seatIds } },
-        data: { status: 'SOLD' }
-      });
-
-      // 3. สร้างตั๋วเข้าคลัง
-      const newTickets = await Promise.all(
-        seatIds.map(seatId => 
-          tx.ticket.create({
-            data: { userId, seatId }
-          })
-        )
-      );
-
-      return newTickets;
-    });
-
-    res.json({ success: true, message: 'Tickets purchased successfully', tickets: result });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// --- (Admin) สร้างคอนเสิร์ตและที่นั่งแบบ Custom ---
-app.post('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
-  const { name, description, date, time, venue, customSeats } = req.body;
-
-  try {
-    const newConcert = await prisma.concert.create({
-      data: {
-        name, description, date, time, venue,
-        seats: {
-          create: customSeats // ex: [{ row: "A", number: 1, tier: "VIP" }]
-        }
-      },
+    const concert = await prisma.concert.findUnique({
+      where: { id: parseInt(req.params.id) },
       include: { seats: true }
     });
-    res.json({ success: true, concert: newConcert });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+    if (!concert) return res.status(404).json({ error: 'Concert not found' });
+    res.json(concert);
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- (Admin) แก้ไขรายละเอียดคอนเสิร์ต ---
-app.put('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) => {
-  const concertId = parseInt(req.params.id);
-  const updateData = req.body;
+// ดูคลังตั๋ว (Inventory)
+app.get('/api/users/me/tickets', authenticateToken, async (req, res) => {
+  try {
+    const tickets = await prisma.ticket.findMany({
+      where: { userId: req.user.id },
+      include: { seat: { include: { concert: true } } },
+      orderBy: { purchasedAt: 'desc' }
+    });
+    res.json(tickets);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
 
+// ซื้อตั๋ว
+app.post('/api/tickets/buy', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const { seatIds } = req.body; 
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const seats = await tx.seat.findMany({ where: { id: { in: seatIds } } });
+      if (seats.some(seat => seat.status !== 'AVAILABLE')) throw new Error('บางที่นั่งถูกซื้อไปแล้ว');
+      await tx.seat.updateMany({ where: { id: { in: seatIds } }, data: { status: 'SOLD' } });
+      return await Promise.all(seatIds.map(seatId => tx.ticket.create({ data: { userId, seatId } })));
+    });
+    res.json({ success: true, tickets: result });
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+// ================== Admin API ==================
+// ดึงคอนเสิร์ตทั้งหมด (รวม Private)
+app.get('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const concerts = await prisma.concert.findMany();
+    res.json(concerts);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// สร้างคอนเสิร์ตใหม่
+app.post('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
+  const { name, description, date, time, venue, image, isPublished, customSeats } = req.body;
+  try {
+    const newConcert = await prisma.concert.create({
+      data: { name, description, date, time, venue, image, isPublished, seats: { create: customSeats } },
+    });
+    res.json({ success: true, concert: newConcert });
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+// แก้ไขรายละเอียดคอนเสิร์ต
+app.put('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) => {
+  const { name, description, date, time, venue, image, isPublished } = req.body;
   try {
     const updatedConcert = await prisma.concert.update({
-      where: { id: concertId },
-      data: updateData
+      where: { id: parseInt(req.params.id) },
+      data: { name, description, date, time, venue, image, isPublished }
     });
     res.json({ success: true, concert: updatedConcert });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+  } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-// --- (Admin) เพิ่มที่นั่งให้คอนเสิร์ตเดิมทีหลัง ---
-app.post('/api/admin/concerts/:id/seats', authenticateToken, isAdmin, async (req, res) => {
-  const concertId = parseInt(req.params.id);
-  const { seatsToCreate } = req.body; 
-
+// ลบคอนเสิร์ต
+app.delete('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const newSeats = await prisma.seat.createMany({
-      data: seatsToCreate.map(seat => ({ ...seat, concertId }))
-    });
-    res.json({ success: true, addedCount: newSeats.count });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+    const concertId = parseInt(req.params.id);
+    await prisma.$transaction([
+      prisma.ticket.deleteMany({ where: { seat: { concertId } } }),
+      prisma.seat.deleteMany({ where: { concertId } }),
+      prisma.concert.delete({ where: { id: concertId } })
+    ]);
+    res.json({ success: true });
+  } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-// ==========================================
-// เริ่มการทำงานของ Server
-// ==========================================
-const PORT = 5000;
-app.listen(PORT, () => {
-  console.log(`Backend server is running on http://localhost:${PORT}`);
-});
+app.listen(5000, () => console.log(`Backend server is running on http://localhost:5000`));

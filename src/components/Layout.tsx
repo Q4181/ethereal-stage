@@ -1,60 +1,57 @@
 import React from 'react';
-import { Search, User, Menu } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { User, LogOut, Ticket, ArrowLeft, Archive } from 'lucide-react';
 
-export function Navbar() {
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const token = localStorage.getItem('token');
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    alert('ออกจากระบบแล้ว');
+    navigate('/');
+  };
+
   return (
-    <nav className="fixed top-0 w-full z-50 glass-effect border-b border-white/5 px-8 py-4">
-      <div className="max-w-7xl mx-auto flex justify-between items-center">
-        <div className="flex items-center gap-12">
-          <Link to="/" className="text-2xl font-bold text-primary font-headline tracking-tight">
-            Ethereal Stage
-          </Link>
-          <div className="hidden md:flex gap-8">
-            <Link to="/" className="text-on-surface font-label text-sm border-b-2 border-primary pb-1">Concerts</Link>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface font-label text-sm transition-colors">Venues</a>
-            <a href="#" className="text-on-surface-variant hover:text-on-surface font-label text-sm transition-colors">Tours</a>
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col font-sans">
+      <nav className="sticky top-0 z-50 bg-gray-900/80 backdrop-blur-md border-b border-gray-800 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            {/* ปุ่ม Back จะโชว์เมื่อไม่ได้อยู่หน้าแรก */}
+            {location.pathname !== '/' && (
+              <button onClick={() => navigate(-1)} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition">
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <Link to="/" className="text-2xl font-extrabold text-blue-500 tracking-tighter flex items-center gap-2 hover:scale-105 transition-transform">
+              <Ticket className="w-8 h-8" /> ETHEREAL STAGE
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-6">
+            {token ? (
+              <>
+                <Link to="/inventory" className="flex items-center gap-2 text-gray-400 hover:text-white transition font-bold">
+                  <Archive size={20} /> คลังตั๋วของฉัน
+                </Link>
+                <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition font-bold">
+                  <LogOut size={20} /> ออกจากระบบ
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="flex items-center gap-2 text-gray-400 hover:text-blue-500 transition font-bold">
+                <User size={20} /> เข้าสู่ระบบ
+              </Link>
+            )}
           </div>
         </div>
-        
-        <div className="flex items-center gap-6">
-          <button className="text-on-surface-variant hover:text-primary transition-colors">
-            <Search size={20} />
-          </button>
-          <button className="text-on-surface-variant hover:text-primary transition-colors">
-            <User size={20} />
-          </button>
-          <button className="md:hidden text-primary">
-            <Menu size={24} />
-          </button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-export function Footer() {
-  return (
-    <footer className="w-full py-16 px-8 flex flex-col items-center border-t border-white/5 bg-surface-low mt-24">
-      <div className="text-xl font-bold text-primary mb-6 font-headline">Ethereal Stage</div>
-      <div className="flex flex-wrap justify-center gap-8 mb-10">
-        <a href="#" className="text-on-surface-variant hover:text-primary underline underline-offset-4 font-label text-sm transition-all">Privacy Policy</a>
-        <a href="#" className="text-on-surface-variant hover:text-primary underline underline-offset-4 font-label text-sm transition-all">Terms of Service</a>
-        <a href="#" className="text-on-surface-variant hover:text-primary underline underline-offset-4 font-label text-sm transition-all">Help Center</a>
-        <a href="#" className="text-on-surface-variant hover:text-primary underline underline-offset-4 font-label text-sm transition-all">Contact</a>
-      </div>
-      <p className="text-on-surface-variant font-body text-sm opacity-60">
-        © 2024 Ethereal Stage. All Rights Reserved.
-      </p>
-    </footer>
-  );
-}
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-background text-on-surface min-h-screen flex flex-col">
-      <Navbar />
+      </nav>
       <main className="flex-grow">{children}</main>
-      <Footer />
+      <footer className="py-8 text-center text-gray-600 border-t border-gray-900 bg-gray-950 mt-12 text-sm">
+        © 2024 Ethereal Stage. All rights reserved.
+      </footer>
     </div>
   );
 }
