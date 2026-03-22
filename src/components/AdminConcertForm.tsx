@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import Modal from './Modal';
 
 export default function AdminConcertForm() {
-  const { id } = useParams(); // ถ้ามี id แปลว่าเป็นการ "แก้ไข"
+  const { id } = useParams();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '', description: '', date: '', time: '', venue: '', image: '', isPublished: false
@@ -10,10 +11,12 @@ export default function AdminConcertForm() {
   
   const [seats, setSeats] = useState<any[]>([]);
   const [seatInput, setSeatInput] = useState({ tier: 'VIP', price: 2500, row: 'A', count: 20 });
+  
+  // เพิ่ม State สำหรับจัดการ Modal
+  const [modal, setModal] = useState({ open: false, type: 'success' as 'success' | 'error' | 'info', title: '', msg: '' });
 
   useEffect(() => {
     if (id) {
-      // โหมดแก้ไข ดึงข้อมูลเก่ามาแสดง
       fetch(`http://localhost:5000/api/concerts/${id}`)
         .then(res => res.json())
         .then(data => setFormData({
@@ -38,7 +41,7 @@ export default function AdminConcertForm() {
     try {
       const url = id ? `http://localhost:5000/api/admin/concerts/${id}` : 'http://localhost:5000/api/admin/concerts';
       const method = id ? 'PUT' : 'POST';
-      const body = id ? formData : { ...formData, customSeats: seats }; // แก้ไขจะแก้แค่รายละเอียด ไม่แก้ที่นั่ง
+      const body = id ? formData : { ...formData, customSeats: seats };
 
       const res = await fetch(url, {
         method,
@@ -46,20 +49,41 @@ export default function AdminConcertForm() {
         body: JSON.stringify(body)
       });
       const data = await res.json();
+      
       if (data.success) {
-        alert(id ? 'อัปเดตข้อมูลสำเร็จ!' : 'สร้างคอนเสิร์ตสำเร็จ!');
-        navigate('/');
-      } else { alert('Error: ' + data.error); }
-    } catch (err) { alert('ระบบขัดข้อง'); }
+        // เปลี่ยนจาก alert เป็น Modal
+        setModal({ 
+          open: true, 
+          type: 'success', 
+          title: 'สำเร็จ', 
+          msg: id ? 'อัปเดตข้อมูลคอนเสิร์ตสำเร็จ!' : 'สร้างคอนเสิร์ตใหม่สำเร็จ!' 
+        });
+      } else { 
+        setModal({ open: true, type: 'error', title: 'เกิดข้อผิดพลาด', msg: data.error }); 
+      }
+    } catch (err) { 
+      setModal({ open: true, type: 'error', title: 'ระบบขัดข้อง', msg: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้' }); 
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 text-white">
+      {/* เรียกใช้งาน Modal */}
+      <Modal 
+        isOpen={modal.open} 
+        type={modal.type} 
+        title={modal.title} 
+        message={modal.msg} 
+        onClose={() => {
+          setModal({ ...modal, open: false });
+          if (modal.type === 'success') navigate('/');
+        }} 
+      />
+
       <h1 className="text-4xl font-extrabold mb-8 text-blue-500">{id ? 'แก้ไขคอนเสิร์ต' : 'สร้างคอนเสิร์ตใหม่'}</h1>
       
       <form onSubmit={handleSaveConcert} className="space-y-8 bg-gray-900 p-8 rounded-2xl border border-gray-800">
         
-        {/* Toggle สถานะการเปิดขาย */}
         <div className="flex items-center gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
           <label className="text-sm font-bold">สถานะการแสดงผล:</label>
           <button type="button" onClick={() => setFormData({...formData, isPublished: !formData.isPublished})}
@@ -95,7 +119,6 @@ export default function AdminConcertForm() {
           </div>
         </div>
 
-        {/* เครื่องมือจัดที่นั่งจะแสดงเฉพาะตอนสร้างใหม่เท่านั้น (ตอนแก้จะซ่อนไว้เพื่อป้องกันที่นั่งพัง) */}
         {!id && (
           <div className="border-t border-gray-700 pt-8">
             <h2 className="text-2xl font-bold mb-4 text-yellow-400">จัดที่นั่งและราคา</h2>
@@ -110,7 +133,7 @@ export default function AdminConcertForm() {
           </div>
         )}
 
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl text-white font-bold text-xl transition">
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl text-white font-bold text-xl transition shadow-lg">
           {id ? 'บันทึกการแก้ไข' : 'บันทึกคอนเสิร์ต'}
         </button>
       </form>
