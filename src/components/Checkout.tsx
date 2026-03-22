@@ -1,5 +1,6 @@
 // src/components/Checkout.tsx (แก้ไขฟังก์ชันตอนกดปุ่ม)
 import { useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
 
 export default function Checkout() {
   const location = useLocation();
