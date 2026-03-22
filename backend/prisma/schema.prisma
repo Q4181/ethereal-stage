@@ -1,51 +1,43 @@
-// schema.prisma
+// backend/prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite" // ใช้ SQLite สำหรับโปรแกรมทดลอง (เปลี่ยนเป็น postgresql ได้)
+  provider = "sqlite"
   url      = "file:./dev.db"
 }
 
-enum Role {
-  USER
-  ADMIN
-}
-
-enum SeatStatus {
-  AVAILABLE
-  SOLD
-}
+// ลบ enum ออกทั้งหมด แล้วเปลี่ยน type ใน model เป็น String แทน
 
 model User {
   id       Int      @id @default(autoincrement())
   email    String   @unique
-  password String   // ควร Hash ก่อนบันทึก
-  role     Role     @default(USER) // แยก Admin / User
-  tickets  Ticket[] // ความสัมพันธ์ 1 User มีหลายตั๋ว
+  password String   
+  role     String   @default("USER") // เปลี่ยนจาก Role เป็น String
+  tickets  Ticket[] 
 }
 
 model Concert {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
-  date        String   // เช่น "Dec 12, 2024"
-  time        String   // เช่น "8:00 PM"
+  date        String   
+  time        String   
   venue       String
-  seats       Seat[]   // ความสัมพันธ์ 1 คอนเสิร์ต มีหลายที่นั่ง
+  seats       Seat[]   
 }
 
 model Seat {
   id        Int        @id @default(autoincrement())
   concertId Int
   concert   Concert    @relation(fields: [concertId], references: [id])
-  row       String     // แถว เช่น "A", "B", "R"
-  number    Int        // หมายเลขที่นั่ง เช่น 1, 2, 3
-  tier      String     // ระดับที่นั่ง เช่น "VIP", "Regular" (โจทย์ข้อ 3.2)
-  status    SeatStatus @default(AVAILABLE)
-  ticket    Ticket?    // ถ้าขายแล้วจะมีตั๋วผูกอยู่
+  row       String     
+  number    Int        
+  tier      String     
+  status    String     @default("AVAILABLE") // เปลี่ยนจาก SeatStatus เป็น String
+  ticket    Ticket?    
 }
 
 model Ticket {

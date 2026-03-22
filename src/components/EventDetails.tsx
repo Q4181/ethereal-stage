@@ -1,19 +1,57 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
+// src/components/EventDetails.tsx
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion'; // แก้ไข Import ให้รองรับได้ครอบคลุมขึ้น
 import { Calendar, MapPin, Plus, Minus, Ticket } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
-import { CONCERTS, cn } from '../types';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { cn } from '../types';
 
-export function EventDetails() {
+export default function EventDetails() {
   const { id } = useParams();
-  const concert = CONCERTS.find(c => c.id === id) || CONCERTS[1];
-  const [selectedSeats, setSelectedSeats] = useState<string[]>(['A12', 'A13']);
+  const navigate = useNavigate();
+  
+  // สร้าง State สำหรับเก็บข้อมูลจาก Backend
+  const [concert, setConcert] = useState<any>(null);
+  const [selectedSeats, setSelectedSeats] = useState<any[]>([]);
 
-  const toggleSeat = (seatId: string) => {
-    setSelectedSeats(prev => 
-      prev.includes(seatId) ? prev.filter(s => s !== seatId) : [...prev, seatId]
-    );
+  // ดึงข้อมูลคอนเสิร์ตและที่นั่งจาก Backend
+  useEffect(() => {
+    fetch('http://localhost:5000/api/concerts/1') // ดึง ID 1 ที่เรา seed ข้อมูลไว้
+      .then(res => res.json())
+      .then(data => setConcert(data))
+      .catch(err => console.error(err));
+  }, []);
+
+  // ฟังก์ชันกดเลือกที่นั่ง
+  const toggleSeat = (seat: any) => {
+    if (seat.status !== 'AVAILABLE') return; // ถ้าขายแล้วกดไม่ได้
+    
+    const isSelected = selectedSeats.some(s => s.id === seat.id);
+    if (isSelected) {
+      setSelectedSeats(selectedSeats.filter(s => s.id !== seat.id));
+    } else {
+      setSelectedSeats([...selectedSeats, seat]);
+    }
   };
+
+  // ฟังก์ชันกดปุ่มชำระเงิน
+  const handleProceed = () => {
+    if (selectedSeats.length === 0) return alert('กรุณาเลือกที่นั่งอย่างน้อย 1 ที่');
+    // ส่งข้อมูลที่นั่งไปหน้า Checkout
+    navigate('/checkout', { state: { selectedSeats } });
+  };
+
+  // ระหว่างรอข้อมูลจาก Backend
+  if (!concert) return <div className="min-h-screen pt-24 text-white text-center">Loading...</div>;
+
+  // จัดกลุ่มที่นั่งจากฐานข้อมูลแยกเป็น VIP และ Regular
+  const vipSeats = concert.seats?.filter((s: any) => s.tier === 'VIP') || [];
+  const regularSeats = concert.seats?.filter((s: any) => s.tier === 'Regular') || [];
+
+  // คำนวณราคาสดๆ จากที่นั่งที่เลือก
+  const getSeatPrice = (tier: string) => tier === 'VIP' ? 249 : 129;
+  const seatsTotal = selectedSeats.reduce((sum, seat) => sum + getSeatPrice(seat.tier), 0);
+  const serviceFee = selectedSeats.length > 0 ? 24.50 : 0;
+  const finalTotal = seatsTotal + serviceFee;
 
   return (
     <div className="min-h-screen pt-24 pb-32 px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12">
@@ -25,14 +63,15 @@ export function EventDetails() {
           className="space-y-4"
         >
           <span className="text-primary font-label uppercase tracking-widest text-xs font-bold">Live Performance</span>
-          <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight">{concert.artist} {concert.tour}</h1>
+          {/* เปลี่ยนมาดึง concert.name และข้อมูลจริงจาก Database */}
+          <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight">{concert.name}</h1>
           <div className="flex gap-6 text-on-surface-variant text-sm">
             <span className="flex items-center gap-2"><Calendar size={16} /> {concert.date}</span>
             <span className="flex items-center gap-2"><MapPin size={16} /> {concert.venue}</span>
           </div>
         </motion.div>
 
-        {/* Stage Visualization */}
+        {/* Stage Visualization (เหมือนเดิม) */}
         <div className="relative w-full aspect-[16/6] bg-surface-low rounded-xl overflow-hidden flex items-end justify-center pb-4 border border-white/5">
           <div className="absolute inset-0 bg-gradient-to-t from-primary/10 to-transparent" />
           <div className="w-3/4 h-2 bg-primary/40 blur-md absolute bottom-0" />
@@ -41,34 +80,31 @@ export function EventDetails() {
           </div>
         </div>
 
-        {/* Seat Grid */}
+        {/* Seat Grid (ดึงจากฐานข้อมูลจริง) */}
         <div className="bg-surface-container rounded-xl p-8 relative shadow-2xl border border-white/5 overflow-hidden">
-          <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-            <button className="w-10 h-10 rounded-full bg-surface-high flex items-center justify-center hover:bg-primary/20 transition-colors border border-white/5">
-              <Plus size={18} />
-            </button>
-            <button className="w-10 h-10 rounded-full bg-surface-high flex items-center justify-center hover:bg-primary/20 transition-colors border border-white/5">
-              <Minus size={18} />
-            </button>
-          </div>
-
           <div className="flex flex-col items-center gap-12 py-8">
+            
             {/* VIP Section */}
             <div className="space-y-4 text-center">
               <span className="text-[10px] font-label text-tertiary-dim tracking-widest uppercase font-bold">VIP Orchestra</span>
-              <div className="grid grid-cols-12 gap-3">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const seatId = `A${i + 7}`;
-                  const isSelected = selectedSeats.includes(seatId);
+              <div className="flex flex-wrap justify-center gap-3">
+                {vipSeats.map((seat: any) => {
+                  const isSelected = selectedSeats.some(s => s.id === seat.id);
+                  const isSold = seat.status !== 'AVAILABLE';
                   return (
                     <button 
-                      key={seatId}
-                      onClick={() => toggleSeat(seatId)}
+                      key={seat.id}
+                      onClick={() => toggleSeat(seat)}
+                      disabled={isSold}
                       className={cn(
-                        "w-6 h-6 rounded-sm transition-all duration-300",
-                        isSelected ? "cta-gradient shadow-lg shadow-primary/20" : "bg-tertiary/20 hover:bg-tertiary/40 border border-tertiary/10"
+                        "w-10 h-10 rounded-sm transition-all duration-300 flex items-center justify-center text-xs font-bold",
+                        isSold ? "bg-surface-highest opacity-30 cursor-not-allowed" : 
+                        isSelected ? "cta-gradient shadow-lg shadow-primary/20 text-black" : 
+                        "bg-tertiary/20 hover:bg-tertiary/40 border border-tertiary/10 text-white"
                       )}
-                    />
+                    >
+                      {seat.row}{seat.number}
+                    </button>
                   );
                 })}
               </div>
@@ -77,19 +113,24 @@ export function EventDetails() {
             {/* Regular Section */}
             <div className="space-y-4 text-center">
               <span className="text-[10px] font-label text-on-surface-variant tracking-widest uppercase font-bold">Regular Seating</span>
-              <div className="grid grid-cols-12 gap-3">
-                {Array.from({ length: 36 }).map((_, i) => {
-                  const seatId = `R${i}`;
-                  const isReserved = i === 2 || i === 15 || i === 28;
+              <div className="flex flex-wrap justify-center gap-3">
+                {regularSeats.map((seat: any) => {
+                  const isSelected = selectedSeats.some(s => s.id === seat.id);
+                  const isSold = seat.status !== 'AVAILABLE';
                   return (
                     <button 
-                      key={seatId}
-                      disabled={isReserved}
+                      key={seat.id}
+                      onClick={() => toggleSeat(seat)}
+                      disabled={isSold}
                       className={cn(
-                        "w-6 h-6 rounded-sm transition-all duration-300",
-                        isReserved ? "bg-surface-highest opacity-30 cursor-not-allowed" : "bg-surface-highest hover:bg-primary/40"
+                        "w-10 h-10 rounded-sm transition-all duration-300 flex items-center justify-center text-xs font-bold",
+                        isSold ? "bg-surface-highest opacity-30 cursor-not-allowed" : 
+                        isSelected ? "bg-surface-highest text-white hover:bg-primary/40 border-2 border-primary" : 
+                        "bg-surface-highest hover:bg-primary/40 text-gray-400"
                       )}
-                    />
+                    >
+                      {seat.row}{seat.number}
+                    </button>
                   );
                 })}
               </div>
@@ -107,12 +148,8 @@ export function EventDetails() {
               <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Regular ($129)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full cta-gradient" />
-              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Selected</span>
-            </div>
-            <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-surface-highest opacity-30" />
-              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Reserved</span>
+              <span className="text-[10px] text-on-surface-variant font-label uppercase font-bold">Sold Out</span>
             </div>
           </div>
         </div>
@@ -128,19 +165,28 @@ export function EventDetails() {
           <div className="space-y-6">
             <h3 className="text-xl font-headline font-bold">Booking Details</h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-label text-on-surface font-bold">Seat {selectedSeats.join(', ')}</p>
-                  <p className="text-xs text-on-surface-variant">VIP Orchestra Section</p>
-                </div>
-                <span className="text-primary font-bold">$498.00</span>
-              </div>
-              <div className="flex justify-between items-start">
+              
+              {/* คำนวณรายการที่นั่งที่เลือกจริง */}
+              {selectedSeats.length > 0 ? (
+                selectedSeats.map(seat => (
+                  <div key={seat.id} className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-sm font-label text-on-surface font-bold">Seat {seat.row}{seat.number}</p>
+                      <p className="text-xs text-on-surface-variant">{seat.tier} Section</p>
+                    </div>
+                    <span className="text-primary font-bold">${getSeatPrice(seat.tier)}.00</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-on-surface-variant">ยังไม่ได้เลือกที่นั่ง</p>
+              )}
+
+              <div className="flex justify-between items-start pt-4 border-t border-white/5">
                 <div>
                   <p className="text-sm font-label text-on-surface font-bold">Service Fee</p>
                   <p className="text-xs text-on-surface-variant">Booking & Processing</p>
                 </div>
-                <span className="text-on-surface-variant">$24.50</span>
+                <span className="text-on-surface-variant">${serviceFee.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -152,7 +198,9 @@ export function EventDetails() {
             </div>
             <div className="flex flex-wrap gap-2">
               {selectedSeats.map(seat => (
-                <span key={seat} className="bg-primary/20 text-primary text-[10px] px-3 py-1 rounded-full font-bold">ROW {seat}</span>
+                <span key={seat.id} className="bg-primary/20 text-primary text-[10px] px-3 py-1 rounded-full font-bold">
+                  {seat.row}{seat.number}
+                </span>
               ))}
             </div>
           </div>
@@ -160,14 +208,14 @@ export function EventDetails() {
           <div className="space-y-6">
             <div className="flex justify-between items-center pt-4">
               <span className="text-lg font-headline text-on-surface-variant">Total Price</span>
-              <span className="text-4xl font-headline font-extrabold text-on-surface">$522.50</span>
+              <span className="text-4xl font-headline font-extrabold text-on-surface">${finalTotal.toFixed(2)}</span>
             </div>
-            <Link 
-              to="/checkout"
-              className="w-full py-5 rounded-full cta-gradient text-on-primary font-bold shadow-lg transition-transform active:scale-95 hover:opacity-90 block text-center text-lg"
+            <button 
+              onClick={handleProceed}
+              className="w-full py-5 rounded-full cta-gradient text-on-primary font-bold shadow-lg transition-transform active:scale-95 hover:opacity-90 block text-center text-lg cursor-pointer"
             >
               Proceed to Checkout
-            </Link>
+            </button>
             <p className="text-[10px] text-center text-on-surface-variant px-4 uppercase tracking-wider leading-relaxed">
               By clicking you agree to our Terms of Sale and Event Attendance Policy.
             </p>

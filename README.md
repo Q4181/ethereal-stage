@@ -12,6 +12,8 @@ View your app in AI Studio: https://ai.studio/apps/9d178176-e0bb-4fc2-9728-c7833
 
 **Prerequisites:**  Node.js
 
+server 
+   'npx nodemon server.js'
 
 1. Install dependencies:
    `npm install`
