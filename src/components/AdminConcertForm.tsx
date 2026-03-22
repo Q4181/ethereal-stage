@@ -11,17 +11,21 @@ export default function AdminConcertForm() {
   
   const [seats, setSeats] = useState<any[]>([]);
   const [seatInput, setSeatInput] = useState({ tier: 'VIP', price: 2500, row: 'A', count: 20 });
-  
-  // เพิ่ม State สำหรับจัดการ Modal
-  const [modal, setModal] = useState({ open: false, type: 'success' as 'success' | 'error' | 'info', title: '', msg: '' });
+  const [modal, setModal] = useState({ open: false, type: 'success' as 'success' | 'error', title: '', msg: '' });
 
   useEffect(() => {
     if (id) {
+      // โหมดแก้ไข ดึงข้อมูลเก่ามาแสดง
       fetch(`http://localhost:5000/api/concerts/${id}`)
         .then(res => res.json())
         .then(data => setFormData({
-          name: data.name, description: data.description, date: data.date, 
-          time: data.time, venue: data.venue, image: data.image || '', isPublished: data.isPublished
+          name: data.name, 
+          description: data.description || '', // <-- ดึงข้อมูลเก่ามาใส่ตรงนี้
+          date: data.date, 
+          time: data.time, 
+          venue: data.venue, 
+          image: data.image || '', 
+          isPublished: data.isPublished
         }));
     }
   }, [id]);
@@ -49,37 +53,24 @@ export default function AdminConcertForm() {
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      
       if (data.success) {
-        // เปลี่ยนจาก alert เป็น Modal
         setModal({ 
           open: true, 
           type: 'success', 
           title: 'สำเร็จ', 
-          msg: id ? 'อัปเดตข้อมูลคอนเสิร์ตสำเร็จ!' : 'สร้างคอนเสิร์ตใหม่สำเร็จ!' 
+          msg: id ? 'อัปเดตข้อมูลสำเร็จ!' : 'สร้างคอนเสิร์ตสำเร็จ!' 
         });
-      } else { 
-        setModal({ open: true, type: 'error', title: 'เกิดข้อผิดพลาด', msg: data.error }); 
-      }
-    } catch (err) { 
-      setModal({ open: true, type: 'error', title: 'ระบบขัดข้อง', msg: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้' }); 
-    }
+      } else { setModal({ open: true, type: 'error', title: 'ผิดพลาด', msg: data.error }); }
+    } catch (err) { setModal({ open: true, type: 'error', title: 'ผิดพลาด', msg: 'ระบบขัดข้อง' }); }
   };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 text-white">
-      {/* เรียกใช้งาน Modal */}
-      <Modal 
-        isOpen={modal.open} 
-        type={modal.type} 
-        title={modal.title} 
-        message={modal.msg} 
-        onClose={() => {
+      <Modal isOpen={modal.open} type={modal.type} title={modal.title} message={modal.msg} onClose={() => {
           setModal({ ...modal, open: false });
           if (modal.type === 'success') navigate('/');
         }} 
       />
-
       <h1 className="text-4xl font-extrabold mb-8 text-blue-500">{id ? 'แก้ไขคอนเสิร์ต' : 'สร้างคอนเสิร์ตใหม่'}</h1>
       
       <form onSubmit={handleSaveConcert} className="space-y-8 bg-gray-900 p-8 rounded-2xl border border-gray-800">
@@ -98,25 +89,17 @@ export default function AdminConcertForm() {
             <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" />
           </div>
           <div className="col-span-2">
-            <label className="block text-sm text-gray-400 mb-1">รายละเอียด</label>
-            <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" rows={3}></textarea>
+            <label className="block text-sm text-gray-400 mb-1">รายละเอียด (เว้นบรรทัดได้)</label>
+            {/* แก้ไขให้ใส่ value={formData.description} */}
+            <textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white whitespace-pre-line" rows={6}></textarea>
           </div>
           <div className="col-span-2">
             <label className="block text-sm text-gray-400 mb-1">URL รูปภาพ</label>
-            <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" placeholder="https://..." />
+            <input type="text" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white placeholder:text-gray-600" placeholder="https://..." />
           </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">วันที่ (เช่น 24 Dec 2024)</label>
-            <input required type="text" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">เวลา (เช่น 19:00)</label>
-            <input required type="text" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" />
-          </div>
-          <div className="col-span-2">
-            <label className="block text-sm text-gray-400 mb-1">สถานที่</label>
-            <input required type="text" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" />
-          </div>
+          <div><label className="block text-sm text-gray-400 mb-1">วันที่ (เช่น 24 Dec 2024)</label><input required type="text" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" /></div>
+          <div><label className="block text-sm text-gray-400 mb-1">เวลา (เช่น 19:00)</label><input required type="text" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" /></div>
+          <div className="col-span-2"><label className="block text-sm text-gray-400 mb-1">สถานที่</label><input required type="text" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} className="w-full p-3 bg-gray-800 rounded-lg text-white" /></div>
         </div>
 
         {!id && (
@@ -129,7 +112,6 @@ export default function AdminConcertForm() {
               <div><label className="block text-xs text-gray-400 mb-1">จำนวนที่นั่ง</label><input type="number" value={seatInput.count} onChange={e => setSeatInput({...seatInput, count: Number(e.target.value)})} className="w-20 p-2 bg-gray-700 rounded text-white text-center" /></div>
               <button type="button" onClick={handleAddSeats} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold">+ เพิ่มแถว</button>
             </div>
-            <div className="mt-4 text-sm text-gray-400">สร้างที่นั่งไปแล้ว: <span className="text-white font-bold">{seats.length}</span> ที่นั่ง</div>
           </div>
         )}
 

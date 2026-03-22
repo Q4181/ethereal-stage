@@ -8,19 +8,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const token = localStorage.getItem('token');
   
-  // เพิ่ม State สำหรับจัดการ Modal
-  const [modal, setModal] = useState({ open: false, type: 'success' as 'success' | 'error' | 'info', title: '', msg: '' });
+  const [modal, setModal] = useState({ open: false, type: 'info' as 'success' | 'error' | 'info' | 'confirm', title: '', msg: '' });
 
-  const handleLogout = () => {
+  // 1. ฟังก์ชันนี้เรียกเมื่อกดปุ่ม "ออกจากระบบ" (จะเด้งถามก่อน)
+  const handleRequestLogout = () => {
+    setModal({ 
+      open: true, 
+      type: 'confirm', 
+      title: 'ยืนยันการออกจากระบบ', 
+      msg: 'คุณแน่ใจหรือไม่ที่จะออกจากระบบ?' 
+    });
+  };
+
+  // 2. ฟังก์ชันนี้เรียกเมื่อกดยืนยันใน Modal
+  const confirmLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
-    // เปลี่ยนจาก alert เป็น Modal
-    setModal({ open: true, type: 'success', title: 'ออกจากระบบ', msg: 'คุณได้ออกจากระบบเรียบร้อยแล้ว' });
+    setModal({ 
+      open: true, 
+      type: 'success', 
+      title: 'ออกจากระบบสำเร็จ', 
+      msg: 'คุณได้ออกจากระบบเรียบร้อยแล้ว' 
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col font-sans">
-      {/* เรียกใช้งาน Modal */}
       <Modal 
         isOpen={modal.open} 
         type={modal.type} 
@@ -28,8 +41,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         message={modal.msg} 
         onClose={() => {
           setModal({ ...modal, open: false });
-          if (modal.title === 'ออกจากระบบ') navigate('/');
+          // รีเฟรชหน้าเว็บเพื่อให้แถบเมนูด้านบนเปลี่ยนสถานะ
+          if (modal.title === 'ออกจากระบบสำเร็จ') window.location.href = '/';
         }} 
+        onConfirm={modal.type === 'confirm' ? confirmLogout : undefined}
       />
 
       <nav className="sticky top-0 z-50 bg-gray-900/80 backdrop-blur-md border-b border-gray-800 px-6 py-4">
@@ -51,13 +66,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link to="/inventory" className="flex items-center gap-2 text-gray-400 hover:text-white transition font-bold">
                   <Archive size={20} /> คลังตั๋วของฉัน
                 </Link>
-                <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition font-bold">
+                <button onClick={handleRequestLogout} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition font-bold">
                   <LogOut size={20} /> ออกจากระบบ
                 </button>
               </>
             ) : (
               <Link to="/login" className="flex items-center gap-2 text-gray-400 hover:text-blue-500 transition font-bold">
-                <User size={20} /> เข้าสู่ระบบ
+                <User size={20} /> เข้าสู่ระบบ / สมัครสมาชิก
               </Link>
             )}
           </div>

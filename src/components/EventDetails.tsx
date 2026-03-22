@@ -37,6 +37,7 @@ export default function EventDetails() {
 
   if (!concert) return <div className="text-center pt-32 text-gray-400">Loading...</div>;
 
+  // จัดกลุ่มที่นั่งตาม Tier และ Row 
   const groupedSeats = concert.seats?.reduce((acc: any, seat: any) => {
     if (!acc[seat.tier]) acc[seat.tier] = {};
     if (!acc[seat.tier][seat.row]) acc[seat.tier][seat.row] = [];
@@ -57,39 +58,62 @@ export default function EventDetails() {
         }} 
       />
       <div className="bg-gray-900 border border-gray-800 rounded-3xl p-8 mb-8 shadow-2xl overflow-hidden">
+        
+        {/* รูปภาพคอนเสิร์ตด้านบนชื่อ */}
         <div className="w-full h-80 bg-gray-800 rounded-2xl overflow-hidden mb-8 relative">
-           <img src={concert.image || 'https://images.unsplash.com/photo-1540039155732-68ee23e15b51?w=1200&q=80'} className="w-full h-full object-cover" />
+           <img src={concert.image || 'https://images.unsplash.com/photo-1540039155732-68ee23e15b51?w=1200&q=80'} alt={concert.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
         </div>
+
         <h1 className="text-4xl font-extrabold text-white mb-2">{concert.name}</h1>
-        <p className="text-blue-400 font-bold mb-4">{concert.date} | {concert.venue}</p>
+        <p className="text-blue-400 font-bold mb-6">{concert.date} | {concert.venue}</p>
         
+        {/* แสดงรายละเอียดโดยให้รองรับการเว้นบรรทัด (whitespace-pre-line) */}
+        {concert.description && (
+          <p className="text-gray-400 mb-12 whitespace-pre-line leading-relaxed">
+            {concert.description}
+          </p>
+        )}
+
+        {/* เวที */}
         <div className="w-full h-16 bg-gradient-to-b from-blue-600/30 to-transparent rounded-t-full border-t border-blue-500/50 mb-16 flex items-center justify-center">
           <span className="text-blue-300 font-bold tracking-[0.5em] text-sm">STAGE</span>
         </div>
 
+        {/* เรนเดอร์โซนที่นั่งแบบแถวยาว (Overflow X) */}
         {Object.keys(groupedSeats).map((tierName) => (
           <div key={tierName} className="mb-12">
-            <h3 className="font-bold mb-6 tracking-widest text-sm uppercase text-blue-400 text-center">{tierName} SECTION</h3>
-            <div className="flex flex-col gap-4 overflow-x-auto pb-6">
-              {Object.keys(groupedSeats[tierName]).map(rowName => (
-                <div key={rowName} className="flex justify-center gap-2 min-w-max mx-auto px-4">
-                  <div className="w-8 flex items-center justify-center font-bold text-gray-500 mr-2">{rowName}</div>
-                  {groupedSeats[tierName][rowName].map((seat: any) => {
-                    const isSelected = selectedSeats.some(s => s.id === seat.id);
-                    const isSold = seat.status !== 'AVAILABLE';
-                    return (
-                      <button key={seat.id} onClick={() => toggleSeat(seat)} disabled={isSold}
-                        className={`w-10 h-10 rounded font-bold text-xs transition-all flex items-center justify-center ${
-                          isSold ? 'bg-gray-800 text-gray-700' :
-                          isSelected ? 'bg-blue-500 text-white scale-110 shadow-lg' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-600'
-                        }`}>
-                        {seat.number}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+            <h3 className={`font-bold mb-6 tracking-widest text-sm uppercase text-blue-400 text-center`}>
+              {tierName} SECTION
+            </h3>
+            
+            <div className="flex flex-col gap-4 overflow-x-auto pb-6 custom-scrollbar">
+              {Object.keys(groupedSeats[tierName]).map(rowName => {
+                const seatsInRow = groupedSeats[tierName][rowName].sort((a:any, b:any) => a.number - b.number);
+                return (
+                  <div key={rowName} className="flex flex-nowrap justify-center gap-2 min-w-max mx-auto px-4">
+                    <div className="w-8 flex items-center justify-center font-bold text-gray-500 mr-2">{rowName}</div>
+                    
+                    {seatsInRow.map((seat: any) => {
+                      const isSelected = selectedSeats.some(s => s.id === seat.id);
+                      const isSold = seat.status !== 'AVAILABLE';
+                      return (
+                        <button 
+                          key={seat.id} onClick={() => toggleSeat(seat)} disabled={isSold}
+                          title={`แถว ${seat.row} ที่นั่ง ${seat.number} ($${seat.price})`}
+                          className={`w-10 h-10 rounded font-bold text-xs transition-all flex items-center justify-center flex-shrink-0 ${
+                            isSold ? 'bg-gray-800 text-gray-700 cursor-not-allowed' :
+                            isSelected ? `bg-blue-500 text-white scale-110 shadow-lg` :
+                            `bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-600`
+                          }`}
+                        >
+                          {seat.number}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -100,7 +124,7 @@ export default function EventDetails() {
           <p className="text-gray-400 text-sm">เลือกแล้ว {selectedSeats.length} ที่นั่ง</p>
           <p className="text-3xl font-extrabold text-white">${selectedSeats.reduce((sum, s) => sum + s.price, 0)}</p>
         </div>
-        <button onClick={handleProceed} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors">
+        <button onClick={handleProceed} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors shadow-lg">
           ดำเนินการชำระเงิน
         </button>
       </div>

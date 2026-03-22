@@ -29,6 +29,29 @@ const isAdmin = (req, res, next) => {
 };
 
 // ================== Public & User API ==================
+
+// สมัครสมาชิกใหม่
+app.post('/api/register', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // เช็คว่ามีอีเมลนี้หรือยัง
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return res.status(400).json({ error: 'อีเมลนี้ถูกใช้งานแล้ว' });
+    
+    // สร้าง User ใหม่ (ให้ Role พื้นฐานเป็น USER)
+    const newUser = await prisma.user.create({
+      data: { email, password, role: 'USER' }
+    });
+    
+    // สร้าง Token ให้ล็อกอินอัตโนมัติเลย
+    const token = jwt.sign({ id: newUser.id, role: newUser.role }, SECRET_KEY, { expiresIn: '24h' });
+    res.json({ success: true, token, role: newUser.role });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ล็อกอิน
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   const user = await prisma.user.findUnique({ where: { email } });
@@ -36,7 +59,7 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '24h' });
     res.json({ success: true, token, role: user.role });
   } else {
-    res.status(401).json({ error: 'Invalid email or password' });
+    res.status(401).json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
   }
 });
 
@@ -88,7 +111,6 @@ app.post('/api/tickets/buy', authenticateToken, async (req, res) => {
 });
 
 // ================== Admin API ==================
-// ดึงคอนเสิร์ตทั้งหมด (รวม Private)
 app.get('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
   try {
     const concerts = await prisma.concert.findMany();
@@ -96,7 +118,6 @@ app.get('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// สร้างคอนเสิร์ตใหม่
 app.post('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => {
   const { name, description, date, time, venue, image, isPublished, customSeats } = req.body;
   try {
@@ -107,7 +128,6 @@ app.post('/api/admin/concerts', authenticateToken, isAdmin, async (req, res) => 
   } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-// แก้ไขรายละเอียดคอนเสิร์ต
 app.put('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) => {
   const { name, description, date, time, venue, image, isPublished } = req.body;
   try {
@@ -119,7 +139,6 @@ app.put('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) 
   } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-// ลบคอนเสิร์ต
 app.delete('/api/admin/concerts/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const concertId = parseInt(req.params.id);
